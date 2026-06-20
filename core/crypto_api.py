@@ -1,33 +1,21 @@
 import requests
 import pandas as pd
 
-def fetch_tron_wallet_data(wallet_address):
-    """
-    Pulls real-time TRC-20 USDT transaction history via TronGrid API.
-    Strips the hex jargon and returns a clean DataFrame.
-    """
-    if not wallet_address:
-        return None
-        
-    url = f"https://api.trongrid.io/v1/accounts/{wallet_address}/transactions/trc20"
-    
-    try:
-        response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            data = response.json().get('data', [])
-            if not data:
-                return None
-            
-            parsed_data = []
-            for tx in data:
-                parsed_data.append({
-                    "Timestamp": pd.to_datetime(tx.get('block_timestamp'), unit='ms'),
-                    "From": tx.get('from'),
-                    "To": tx.get('to'),
-                    "Token": tx.get('token_info', {}).get('symbol', 'USDT'),
-                    "Amount": float(tx.get('value', 0)) / (10 ** int(tx.get('token_info', {}).get('decimals', 6)))
-                })
-            return pd.DataFrame(parsed_data)
-        return None
-    except Exception as e:
+TRON_API_KEY = "f39cdc52-3422-4b2e-8080-36ad7a8b8324"
+ETHERSCAN_API_KEY = "C5A58IJ5UEYS5T3MEJ4NP51Z1CRHV9VFWP"
+
+def fetch_wallet_data(wallet_address, chain="TRON"):
+    # If API keys aren't set, return explicit failure instead of dummy data
+    if chain == "TRON":
+        url = f"https://api.trongrid.io/v1/accounts/{wallet_address}/transactions/trc20"
+        headers = {"TRON-PRO-API-KEY": TRON_API_KEY}
+        try:
+            r = requests.get(url, headers=headers, timeout=5)
+            data = r.json()
+            # ... process data ...
+            return pd.DataFrame(data['data']) if 'data' in data else None
+        except: return None
+    elif chain == "ETHEREUM":
+        if ETHERSCAN_API_KEY == "your_key": return None
+        # ... fetch from etherscan ...
         return None

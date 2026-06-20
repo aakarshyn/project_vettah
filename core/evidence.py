@@ -2,9 +2,7 @@ import hashlib
 
 def generate_sha256_hash(file_bytes):
     """
-    Takes raw file bytes and returns a SHA-256 hash to legally prove 
-    the digital evidence wasn't tampered with during the automated triage.
+    Generates a cryptographically secure SHA-256 hash of the uploaded PDF 
+    to prove the evidence was not tampered with.
     """
-    sha256_hash = hashlib.sha256()
-    sha256_hash.update(file_bytes)
-    return sha256_hash.hexdigest()
+    return hashlib.sha256(file_bytes).hexdigest()

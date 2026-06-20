@@ -2,3 +2,4 @@ streamlit
 pandas
 pdfplumber
 fpdf2
+streamlit-agraph==0.0.45

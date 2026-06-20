@@ -1,28 +1,55 @@
-import pdfplumber
 import pandas as pd
-from templates.bank_schemas import BANK_SCHEMAS
+import pdfplumber
+import re
 
-def extract_table_from_pdf(uploaded_file, bank_name):
+def extract_table_from_pdf(file_obj, bank_type="SBI"):
     """
-    Scrapes tabular data from a PDF file dynamically using the selected bank's schema.
+    Hunts for raw text lines that look like transactions instead of relying on fragile table borders.
     """
-    # Pull the exact bounding box rules for the selected bank
-    template = BANK_SCHEMAS.get(bank_name, BANK_SCHEMAS["SBI"])
-    all_data = []
-    
-    with pdfplumber.open(uploaded_file) as pdf:
-        for page in pdf.pages:
-            table = page.extract_table(table_settings=template["table_settings"])
-            
-            if table and len(table) > 1:
-                df_page = pd.DataFrame(table[1:], columns=table[0])
-                all_data.append(df_page)
-                
-    if not all_data:
+    try:
+        all_transactions = []
+        
+        # Regex to find standard Indian date formats at the start of a string
+        date_pattern = re.compile(r'^(\d{1,2}[/-]\w{3,4}[/-]\d{2,4}|\d{1,2}[/-]\d{1,2}[/-]\d{2,4})')
+        
+        with pdfplumber.open(file_obj) as pdf:
+            for page in pdf.pages:
+                raw_text = page.extract_text()
+                if not raw_text:
+                    continue
+                    
+                lines = raw_text.split('\n')
+                for line in lines:
+                    line = line.strip()
+                    # Check if the line starts with a date
+                    match = date_pattern.match(line)
+                    if match:
+                        date_str = match.group(1)
+                        # Remove the date from the string
+                        remaining_line = line[len(date_str):].strip()
+                        
+                        # Look for currency figures (e.g., 1,500.00 or 500)
+                        # We search from the back of the string
+                        amount_matches = re.findall(r'\b\d{1,3}(?:,\d{3})*(?:\.\d{2})?\b', remaining_line)
+                        
+                        amount = "0.00"
+                        if amount_matches:
+                            # Take the last currency-looking figure as the amount
+                            # and ensure it's not a 12 digit transaction ID
+                            valid_amounts = [amt for amt in amount_matches if len(amt.replace(',', '').split('.')[0]) < 9]
+                            if valid_amounts:
+                                amount = valid_amounts[-1]
+                                
+                        all_transactions.append({
+                            "Date": date_str,
+                            "Description": remaining_line,
+                            "Debit": amount
+                        })
+
+        if not all_transactions:
+            return None
+
+        return pd.DataFrame(all_transactions)
+    except Exception as e:
+        print(f"Extraction Error: {e}")
         return None
-
-    # Combine and clean
-    final_df = pd.concat(all_data, ignore_index=True)
-    final_df = final_df.dropna(subset=[final_df.columns[0]])
-    
-    return final_df
